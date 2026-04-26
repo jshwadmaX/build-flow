@@ -1,76 +1,95 @@
-# 🎨 PromptPixel
+# ⚡ BuildFlow
 
-> **Just describe it. We'll perfect it.**
+> A low-code website builder for software engineering teams — drag, drop, configure, export.
 
-PromptPixel is a full-stack AI-powered image generation application that intelligently enhances your text prompts before generating high-quality images. It judges your input, searches its failure memory to avoid past mistakes, and uses an LLM to craft a superior prompt — all before a single pixel is painted.
+BuildFlow is a full-stack web application that lets users visually construct websites by dragging pre-built components onto a canvas, configuring their properties in real-time, previewing the result live, and exporting clean HTML/CSS — all without writing a single line of code.
 
 ---
 
 ## ✨ Features
 
-- **🔍 AI Prompt Judge** — Evaluates your prompt on a 1–10 quality score, classifies it (`scene`, `portrait`, `style`, `abstract`), and gives actionable feedback.
-- **🧠 Failure Memory** — Every image you mark as "not good" is stored in a SQLite database with a local vector embedding. Future generations avoid similar mistakes automatically.
-- **⚡ Smart Prompt Enhancement** — Uses Groq's `llama-3.1-8b-instant` LLM (with a zero-dependency rule-based fallback) to produce a richer, more detailed prompt.
-- **🖼️ Free Image Generation** — Generates images via [Pollinations.ai](https://pollinations.ai) — completely free, no API key required, no rate limits.
-- **📊 Failure Memory Dashboard** — Browse the full history of logged failures with scores, feedback, and timestamps.
-- **💾 Save or Retry** — Download generated images or send negative feedback to teach PromptPixel to improve.
+- **🖱️ Drag & Drop Editor** — Drag components from the sidebar onto a freeform canvas using `@dnd-kit`. Reposition elements by dragging.
+- **🧩 Rich Component Library** — 7 ready-to-use components: `Text`, `Button`, `Image`, `Card`, `Hero`, `Navbar`, `Footer`.
+- **⚙️ Live Property Panel** — Select any component to edit its text, colors, font sizes, links, and more in a right-side panel with instant visual feedback.
+- **📄 Multi-Page Projects** — Each project supports multiple pages. Add pages from within the editor and switch between them seamlessly.
+- **💾 Auto-Save** — Canvas state is automatically saved to MongoDB via a `bulk-save` API call whenever a change is made.
+- **👁️ Live Preview** — Open a full rendered preview of any page in a new tab at any time.
+- **📤 HTML Export** — Generate and download a self-contained, production-ready `index.html` file with embedded CSS for any page.
+- **🔐 Authentication** — Secure JWT-based registration and login. All projects and components are scoped to the authenticated user.
+- **🛡️ Protected Routes** — The Dashboard and Editor are gated behind authentication; unauthenticated users are redirected to the landing page.
 
 ---
 
 ## 🏗️ Architecture
 
 ```
-pixel/
-├── backend/                  # Node.js / Express API server
-│   ├── server.js             # Entry point, middleware, routes
-│   ├── database.js           # SQLite setup via better-sqlite3
-│   ├── faissIndex.js         # In-memory cosine-similarity vector search
-│   ├── routes/
-│   │   └── api.js            # All API endpoints
-│   ├── promptpixel.db        # SQLite database (auto-created)
-│   ├── failure_ids.json      # Persisted vector index
-│   └── .env                  # Environment variables (not committed)
+lowcode-builder/
+├── client/                         # React + Vite frontend
+│   └── src/
+│       ├── App.jsx                 # Root router
+│       ├── pages/
+│       │   ├── Landing.jsx         # Public marketing / hero page
+│       │   ├── Login.jsx           # Authentication — login form
+│       │   ├── Register.jsx        # Authentication — registration form
+│       │   ├── Dashboard.jsx       # Project list: create, open, delete
+│       │   ├── Editor.jsx          # Main drag-and-drop editor
+│       │   └── Preview.jsx         # Read-only live page preview
+│       ├── components/
+│       │   ├── Navbar.jsx          # Top navigation bar
+│       │   ├── ProtectedRoute.jsx  # Auth guard for private routes
+│       │   └── editor/
+│       │       ├── LeftSidebar.jsx     # Component palette (drag sources)
+│       │       ├── Canvas.jsx          # Drop target, renders placed components
+│       │       ├── ComponentRenderer.jsx # Renders a single component on canvas
+│       │       └── RightPanel.jsx      # Property editor for selected component
+│       │   └── rendered/
+│       │       └── BlockRenderer.jsx   # Renders components for the Preview page
+│       ├── store/
+│       │   └── useStore.js         # Zustand global state (auth + editor)
+│       └── lib/
+│           ├── api.js              # Axios instance with auth header injection
+│           └── codeGenerator.js   # HTML/CSS export engine
 │
-└── frontend/                 # React + Vite + Tailwind CSS app
-    └── src/
-        ├── App.jsx           # Root component & router
-        ├── pages/
-        │   ├── Home.jsx      # Prompt input & generation trigger
-        │   ├── Enhancement.jsx # Review enhanced prompt, generate image
-        │   ├── Result.jsx    # Display image, save or log failure
-        │   └── Memory.jsx    # Failure memory dashboard
-        └── components/
-            ├── Navbar.jsx
-            ├── LoadingOverlay.jsx
-            └── ScoreBadge.jsx
+└── server/                         # Node.js + Express backend
+    ├── server.js                   # Entry point, MongoDB connection
+    ├── middleware/
+    │   └── auth.js                 # JWT verification middleware
+    ├── models/
+    │   ├── User.js                 # Mongoose User schema (bcrypt hashed passwords)
+    │   ├── Project.js              # Mongoose Project schema (name, pages[])
+    │   └── Component.js            # Mongoose Component schema (type, x, y, props…)
+    └── routes/
+        ├── auth.js                 # POST /register, POST /login
+        ├── projects.js             # CRUD + page management for projects
+        └── components.js           # CRUD + bulk-save for canvas components
 ```
 
 ---
 
-## 🔄 How It Works
+## 🔄 User Flow
 
 ```
-User enters prompt
-        │
-        ▼
-  POST /api/judge          ← Groq LLM scores prompt 1–10 + gives feedback
-        │
-        ▼
-  POST /api/search-failures ← Searches vector index for similar past failures
-        │
-        ▼
-  POST /api/enhance        ← LLM rewrites prompt using judge + failure context
-        │
-        ▼
-  POST /api/generate       ← Pollinations.ai generates the image (free, no key)
-        │
-        ▼
-   User Reviews Image
-     /          \
-  Save it    "Not Good"
-               │
-               ▼
-     POST /api/log-failure  ← Embeds + stores in SQLite + vector index
+Landing Page
+     │
+     ▼
+Register / Login  ──► JWT stored in localStorage
+     │
+     ▼
+Dashboard  ──► Create / Open / Delete projects
+     │
+     ▼
+Editor  ──────────────────────────────────────────────────────┐
+  │                                                            │
+  ├─ Left Sidebar: drag a component type onto the canvas       │
+  ├─ Canvas: drop → component appears, drag to reposition      │
+  ├─ Right Panel: click component → edit props live            │
+  ├─ Auto-saves to MongoDB on every change (bulk-save)         │
+  ├─ Add Pages / Switch Pages                                  │
+  └─ Export HTML  or  Open Preview ────────────────────────────┘
+                                           │
+                                           ▼
+                                    Preview Page
+                                (rendered, read-only)
 ```
 
 ---
@@ -79,16 +98,16 @@ User enters prompt
 
 | Layer | Technology |
 |---|---|
-| Frontend | React 19, Vite 8, Tailwind CSS 4 |
-| Routing | React Router DOM v7 |
-| Notifications | React Hot Toast |
+| Frontend Framework | React 18, Vite 5 |
+| Styling | Tailwind CSS 3 |
+| Routing | React Router DOM v6 |
+| State Management | Zustand v4 |
+| Drag & Drop | `@dnd-kit/core`, `@dnd-kit/sortable`, `@dnd-kit/modifiers` |
 | HTTP Client | Axios |
-| Backend | Node.js, Express 5 |
-| Database | SQLite (`better-sqlite3`) |
-| Vector Search | Custom cosine-similarity index (JSON-persisted) |
-| Embeddings | Local TF-IDF-style bag-of-words (128-dim, offline) |
-| LLM | Groq API — `llama-3.1-8b-instant` |
-| Image Generation | Pollinations.ai (free, no API key) |
+| Backend Framework | Node.js, Express 4 |
+| Database | MongoDB + Mongoose 8 |
+| Authentication | JWT (`jsonwebtoken`) + bcrypt (`bcryptjs`) |
+| Dev Server | Nodemon |
 
 ---
 
@@ -96,8 +115,8 @@ User enters prompt
 
 ### Prerequisites
 
-- [Node.js](https://nodejs.org/) v18 or later
-- A free [Groq API key](https://console.groq.com/) *(optional — rule-based fallback works without one)*
+- [Node.js](https://nodejs.org/) v18+
+- [MongoDB](https://www.mongodb.com/) running locally **or** a [MongoDB Atlas](https://www.mongodb.com/atlas) connection string
 
 ---
 
@@ -105,7 +124,7 @@ User enters prompt
 
 ```bash
 git clone <your-repo-url>
-cd pixel
+cd lowcode-builder
 ```
 
 ---
@@ -113,154 +132,234 @@ cd pixel
 ### 2. Set Up the Backend
 
 ```bash
-cd backend
+cd server
 npm install
 ```
 
-Copy the example environment file and fill in your keys:
-
-```bash
-cp .env.example .env
-```
-
-Edit `.env`:
+Create a `.env` file in the `server/` directory:
 
 ```env
-# Optional: Get a free key at https://console.groq.com/
-GROQ_API_KEY=your_groq_api_key_here
+# MongoDB connection string
+MONGO_URI=mongodb://localhost:27017/lowcode
+
+# JWT secret — change this to a long random string in production!
+JWT_SECRET=your_super_secret_jwt_key_here
 
 # Server port (default: 5000)
 PORT=5000
-```
 
-> **Note:** If `GROQ_API_KEY` is not set, PromptPixel falls back to a built-in rule-based judge and enhancer — no external API needed.
+# Frontend URL for CORS
+CLIENT_URL=http://localhost:5173
+```
 
 Start the backend:
 
 ```bash
+# Development (auto-restart on file changes)
+npm run dev
+
+# Production
 npm start
 ```
 
-The server will start at `http://localhost:5000`. The SQLite database is created automatically on first run.
+Server starts at **`http://localhost:5000`**. MongoDB connection is logged on startup.
 
 ---
 
 ### 3. Set Up the Frontend
 
 ```bash
-cd ../frontend
+cd ../client
 npm install
 npm run dev
 ```
 
-The frontend will start at `http://localhost:5173` and proxy API calls to the backend automatically.
+Frontend starts at **`http://localhost:5173`** and proxies `/api/*` requests to the backend automatically via Vite config.
 
 ---
 
 ## 📡 API Reference
 
-All endpoints are prefixed with `/api`.
+Base URL: `http://localhost:5000/api`
+
+### Authentication
+
+| Method | Endpoint | Auth | Description |
+|--------|----------|------|-------------|
+| `POST` | `/auth/register` | ❌ | Register a new user |
+| `POST` | `/auth/login` | ❌ | Login and receive JWT |
+
+#### `POST /auth/register`
+```json
+// Request
+{ "name": "Alice", "email": "alice@example.com", "password": "secret123" }
+
+// Response 201
+{ "token": "<jwt>", "user": { "id": "...", "name": "Alice", "email": "alice@example.com" } }
+```
+
+#### `POST /auth/login`
+```json
+// Request
+{ "email": "alice@example.com", "password": "secret123" }
+
+// Response 200
+{ "token": "<jwt>", "user": { "id": "...", "name": "Alice", "email": "alice@example.com" } }
+```
+
+---
+
+### Projects
+
+All project routes require `Authorization: Bearer <token>`.
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| `GET` | `/health` | Health check |
-| `POST` | `/judge` | Score and classify a prompt |
-| `POST` | `/enhance` | Enhance a prompt using LLM + failure context |
-| `POST` | `/generate` | Generate an image via Pollinations.ai |
-| `POST` | `/log-failure` | Store a failed prompt in memory |
-| `GET` | `/failures` | Fetch all stored failures |
-| `POST` | `/search-failures` | Find semantically similar past failures |
+| `GET` | `/projects` | List all projects for the logged-in user |
+| `POST` | `/projects` | Create a new project |
+| `GET` | `/projects/:id` | Get a single project |
+| `PUT` | `/projects/:id` | Update project name or pages array |
+| `DELETE` | `/projects/:id` | Delete project and all its components |
+| `POST` | `/projects/:id/pages` | Add a new page to a project |
 
-### `POST /api/judge`
+#### `POST /projects`
 ```json
 // Request
-{ "prompt": "a cat in space" }
+{ "name": "My Website" }
 
-// Response
-{ "prompt_type": "scene", "score": 4, "feedback": "Add an art style and lighting details." }
+// Response 201
+{ "_id": "...", "name": "My Website", "pages": [{ "id": "page-...", "name": "Page 1" }] }
 ```
 
-### `POST /api/enhance`
-```json
-// Request
-{ "prompt": "a cat in space", "judgeResult": { "score": 4, "feedback": "..." }, "failures": [] }
+---
 
-// Response
-{ "enhanced_prompt": "A majestic cat floating in deep space, photorealistic, dramatic volumetric lighting, 8k, ultra-detailed..." }
-```
+### Components
 
-### `POST /api/generate`
-```json
-// Request
-{ "prompt": "enhanced prompt text" }
+All component routes require `Authorization: Bearer <token>`.
 
-// Response
-{ "image": "<base64-encoded-jpeg>" }
-```
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/components?projectId=&pageId=` | Get all components for a page |
+| `POST` | `/components/bulk-save` | Replace all components on a page (auto-save) |
+| `POST` | `/components` | Create a single component |
+| `PUT` | `/components/:id` | Update a component |
+| `DELETE` | `/components/:id` | Delete a component |
 
-### `POST /api/log-failure`
+#### `POST /components/bulk-save`
 ```json
 // Request
 {
-  "original_prompt": "a cat in space",
-  "enhanced_prompt": "A majestic cat floating...",
-  "prompt_type": "scene",
-  "failure_reason": "User rated as bad",
-  "judge_score": 4,
-  "judge_feedback": "Add an art style..."
+  "projectId": "...",
+  "pageId": "page-123",
+  "components": [
+    { "type": "Text", "x": 50, "y": 100, "width": 300, "height": 50, "props": { "text": "Hello World" } }
+  ]
 }
 
-// Response
-{ "success": true, "id": 1 }
+// Response 200  — array of saved component documents
 ```
 
 ---
 
 ## 🗄️ Database Schema
 
-```sql
-CREATE TABLE failure_memory (
-  id              INTEGER PRIMARY KEY AUTOINCREMENT,
-  original_prompt TEXT,
-  enhanced_prompt TEXT,
-  prompt_type     TEXT,      -- scene | portrait | style | abstract
-  failure_reason  TEXT,
-  judge_score     REAL,
-  judge_feedback  TEXT,
-  embedding       TEXT,      -- JSON array of 128 floats
-  created_at      DATETIME DEFAULT CURRENT_TIMESTAMP
-);
+### User
+```js
+{
+  name:      String   (required),
+  email:     String   (required, unique),
+  password:  String   (bcrypt hashed, minlength: 6),
+  createdAt: Date,
+  updatedAt: Date
+}
+```
+
+### Project
+```js
+{
+  userId:    ObjectId  → User,
+  name:      String    (required),
+  pages:     [{ id: String, name: String }],
+  createdAt: Date,
+  updatedAt: Date
+}
+```
+
+### Component
+```js
+{
+  projectId: ObjectId  → Project,
+  pageId:    String,
+  type:      Enum ['Text','Button','Image','Card','Hero','Navbar','Footer'],
+  x:         Number    (canvas left offset, px),
+  y:         Number    (canvas top offset, px),
+  width:     Number    (px),
+  height:    Number    (px),
+  props:     Mixed     (component-specific properties),
+  createdAt: Date,
+  updatedAt: Date
+}
 ```
 
 ---
 
-## 🧠 Failure Memory & Vector Search
+## 🧩 Component Library
 
-PromptPixel uses a lightweight, **fully offline** vector search system:
+Each component type has a set of editable `props` surfaced in the Right Panel:
 
-1. **Embedding** — Each prompt is converted to a 128-dimensional vector using a custom TF-IDF-style bag-of-words hash. No external API or model download required.
-2. **Storage** — Vectors are stored in `failure_ids.json` and persist across restarts.
-3. **Search** — Uses cosine similarity to find the top-3 most similar past failures, which are then passed to the LLM to avoid repeating the same mistakes.
+| Component | Key Props |
+|-----------|-----------|
+| **Text** | `text`, `fontSize`, `color` |
+| **Button** | `label`, `bg` (background color), `fontSize`, `linkTo` (page ID) |
+| **Image** | `src` (URL), `alt` |
+| **Card** | `title`, `titleColor`, `body` |
+| **Hero** | `title`, `titleColor`, `subtitle`, `cta` (button label), `bg` (gradient/color) |
+| **Navbar** | `brand` (logo text), `links` (comma-separated) |
+| **Footer** | `text`, `bg` |
+
+---
+
+## 📤 HTML Export
+
+The `codeGenerator.js` produces a **self-contained, zero-dependency HTML file** with:
+
+- Embedded CSS reset and component styles
+- Absolute positioning matching the canvas layout pixel-perfectly
+- A `navigateTo()` helper stub for buttons with page links
+- Compatible with any static host (GitHub Pages, Netlify, Vercel, etc.)
+
+```js
+import { generateHTML, downloadCode } from './lib/codeGenerator';
+
+const html = generateHTML(project, pageId, components);
+downloadCode(html, 'index.html'); // triggers browser download
+```
 
 ---
 
 ## 🌐 Pages
 
-| Route | Page | Description |
-|-------|------|-------------|
-| `/` | Home | Enter a prompt and kick off the pipeline |
-| `/enhance` | Enhancement | Review the original vs. enhanced prompt, then generate |
-| `/result` | Result | View the generated image; save or mark as failure |
-| `/memory` | Failure Memory | Browse all logged failures with scores and feedback |
+| Route | Page | Auth Required | Description |
+|-------|------|:---:|-------------|
+| `/` | Landing | ❌ | Marketing / hero page |
+| `/login` | Login | ❌ | Sign in to your account |
+| `/register` | Register | ❌ | Create a new account |
+| `/dashboard` | Dashboard | ✅ | View and manage your projects |
+| `/editor/:projectId` | Editor | ✅ | Drag-and-drop canvas editor |
+| `/preview/:projectId` | Preview | ❌ | Live read-only page preview |
 
 ---
 
 ## ⚙️ Environment Variables
 
+### Server (`server/.env`)
+
 | Variable | Required | Default | Description |
-|----------|----------|---------|-------------|
-| `GROQ_API_KEY` | No | — | Groq API key for LLM-based judging and enhancement |
-| `PORT` | No | `5000` | Port the backend server listens on |
+|----------|:--------:|---------|-------------|
+| `MONGO_URI` | No | `mongodb://localhost:27017/lowcode` | MongoDB connection string |
+| `JWT_SECRET` | **Yes** | `supersecretkey` | Secret for signing JWT tokens — **change in production** |
+| `PORT` | No | `5000` | Port the API server listens on |
+| `CLIENT_URL` | No | `http://localhost:5173` | Allowed CORS origin |
 
 ---
 
@@ -269,21 +368,26 @@ PromptPixel uses a lightweight, **fully offline** vector search system:
 ### Backend
 | Package | Version | Purpose |
 |---------|---------|---------|
-| `express` | ^5.2.1 | HTTP server framework |
-| `better-sqlite3` | ^12.8.0 | Synchronous SQLite driver |
-| `axios` | ^1.13.6 | HTTP client for external APIs |
-| `cors` | ^2.8.6 | Cross-origin resource sharing |
-| `dotenv` | ^17.3.1 | Environment variable loading |
+| `express` | ^4.18.2 | HTTP server framework |
+| `mongoose` | ^8.0.3 | MongoDB ODM |
+| `jsonwebtoken` | ^9.0.2 | JWT creation & verification |
+| `bcryptjs` | ^2.4.3 | Password hashing |
+| `cors` | ^2.8.5 | Cross-origin resource sharing |
+| `dotenv` | ^16.3.1 | Environment variable loading |
+| `nodemon` | ^3.0.2 | Dev auto-restart |
 
 ### Frontend
 | Package | Version | Purpose |
 |---------|---------|---------|
-| `react` | ^19.2.4 | UI library |
-| `react-router-dom` | ^7.13.2 | Client-side routing |
-| `react-hot-toast` | ^2.6.0 | Toast notifications |
-| `axios` | ^1.13.6 | HTTP client |
-| `tailwindcss` | ^4.2.2 | Utility-first CSS framework |
-| `vite` | ^8.0.1 | Build tool and dev server |
+| `react` | ^18.2.0 | UI library |
+| `react-router-dom` | ^6.21.0 | Client-side routing |
+| `zustand` | ^4.4.7 | Lightweight global state |
+| `@dnd-kit/core` | ^6.3.1 | Drag and drop primitives |
+| `@dnd-kit/sortable` | ^8.0.0 | Sortable drag lists |
+| `@dnd-kit/modifiers` | ^9.0.0 | Drag constraints |
+| `axios` | ^1.6.2 | HTTP client |
+| `tailwindcss` | ^3.4.0 | Utility-first CSS |
+| `vite` | ^5.0.8 | Build tool and dev server |
 
 ---
 
@@ -291,9 +395,8 @@ PromptPixel uses a lightweight, **fully offline** vector search system:
 
 1. Fork the repository
 2. Create a feature branch: `git checkout -b feature/your-feature`
-3. Commit your changes: `git commit -m "Add your feature"`
-4. Push to the branch: `git push origin feature/your-feature`
-5. Open a Pull Request
+3. Commit your changes: `git commit -m "feat: add your feature"`
+4. Push and open a Pull Request
 
 ---
 
@@ -304,5 +407,5 @@ This project is licensed under the ISC License.
 ---
 
 <div align="center">
-  <p>Built with ❤️ using React, Express, Groq, and Pollinations.ai</p>
+  <p>Built with ❤️ using React, Express, MongoDB, and @dnd-kit</p>
 </div>
